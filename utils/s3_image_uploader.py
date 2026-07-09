@@ -1,4 +1,5 @@
 import os
+import threading
 from io import BytesIO
 from pathlib import Path
 
@@ -10,8 +11,16 @@ from PIL import Image
 class S3ImageUploader:
     """Utility class for uploading images to S3 after converting to PNG format."""
 
-    @staticmethod
-    def upload_image(image_path: str, sub_bucket: str = "") -> str:
+    def __init__(self):
+        self._thread_local = threading.local()
+
+    @property
+    def s3_client(self):
+        if not hasattr(self._thread_local, "s3_client"):
+            self._thread_local.s3_client = boto3.client("s3")
+        return self._thread_local.s3_client
+
+    def upload_image(self, image_path: str, sub_bucket: str = "") -> str:
         """
         Convert an image to PNG and upload it to S3.
 
@@ -55,8 +64,7 @@ class S3ImageUploader:
         s3_key = f"{sub_bucket}/{original_name}.png"
 
         # Upload to S3
-        s3_client = boto3.client("s3")
-        s3_client.put_object(
+        self.s3_client.put_object(
             Bucket=bucket_name,
             Key=s3_key,
             Body=png_buffer.getvalue(),
@@ -72,5 +80,6 @@ class S3ImageUploader:
 
 if __name__ == "__main__":
     load_dotenv()
+    uploader = S3ImageUploader()
     img = "./data/images/0a0f2973339372b705031dbacbe3ac3341867054_Image_001.jpg"
-    print(S3ImageUploader.upload_image(img))
+    print(uploader.upload_image(img))

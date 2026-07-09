@@ -4,13 +4,14 @@ This script is used to create a CSV to easily browse the HCI alt text dataset.
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from enum import Enum
 
 import pandas as pd
 from pydantic import BaseModel
+from s3_image_uploader import S3ImageUploader
 from tqdm.auto import tqdm
-
-from .s3_image_uploader import S3ImageUploader
 
 
 class AltTextLevels(str, Enum):
@@ -52,7 +53,8 @@ class HCIAltText(BaseModel):
     corpus_id: int
     title: str
     pdf_hash: str
-    image_url: str
+    image_url: str | None
+    image_upload_error: str | None = None
     venue: str
     year: int
     caption: str
@@ -62,6 +64,13 @@ class HCIAltText(BaseModel):
     is_plot: bool = False
     annotated: bool
     compound: bool
+
+
+@dataclass
+class ImageUploadResult:
+    index: int
+    image_url: str | None
+    error: str | None = None
 
 
 def read_jsonl(file_path: str) -> list[HCIAltTextRaw]:
@@ -89,54 +98,127 @@ def read_jsonl(file_path: str) -> list[HCIAltTextRaw]:
     return output
 
 
-def format_data(data: list[HCIAltTextRaw], image_base_url: str) -> list[HCIAltText]:
+def _batch_items(items, batch_size: int):
+    for start in range(0, len(items), batch_size):
+        yield items[start : start + batch_size]
+
+
+def _upload_image(
+    index: int,
+    image_path: str,
+    s3_uploader: S3ImageUploader,
+    sub_bucket: str = "hci-alt-text-assets2022",
+) -> ImageUploadResult:
+    image_url = s3_uploader.upload_image(
+        image_path,
+        sub_bucket=sub_bucket,
+    )
+    return ImageUploadResult(index=index, image_url=image_url)
+
+
+def _format_item(
+    item: HCIAltTextRaw,
+    upload_result: ImageUploadResult,
+) -> HCIAltText:
+    sentences_with_levels = [
+        (sentence, "; ".join([level.value for level in item.levels[i]]))
+        if item.levels
+        else (sentence, None)
+        for i, sentence in enumerate(item.sentences)
+    ]
+    return HCIAltText(
+        corpus_id=item.corpus_id,
+        title=item.title,
+        pdf_hash=item.pdf_hash,
+        image_url=upload_result.image_url,
+        image_upload_error=upload_result.error,
+        venue=item.venue,
+        year=item.year,
+        caption=item.caption,
+        alt_text=item.alt_text,
+        sentences=f"\n{'-' * 100}\n".join(
+            f"(Levels {levels}): {sentence} "
+            for sentence, levels in sentences_with_levels
+        ),
+        levels=[[level.value for level in sent_levels] for sent_levels in item.levels],
+        is_plot=item.is_plot,
+        annotated=item.annotated,
+        compound=item.compound,
+    )
+
+
+def format_data(
+    data: list[HCIAltTextRaw],
+    image_base_url: str,
+    max_workers: int = 16,
+    upload_batch_size: int = 64,
+    allow_partial_uploads: bool = True,
+    s3_uploader: S3ImageUploader | None = None,
+) -> list[HCIAltText]:
     """
     Formats the raw HCI alt text data into a CSV-friendly format.
 
     Args:
         data (list[HCIAltTextRaw]): A list of raw HCI alt text data.
         image_base_url (str): The base URL for the images.
+        max_workers (int): The maximum number of parallel upload workers.
+        upload_batch_size (int): The number of uploads to schedule at a time.
+        allow_partial_uploads (bool): Whether to keep rows whose image upload fails.
+        s3_uploader (S3ImageUploader | None): Optional uploader to use for uploads.
 
     Returns:
         list[HCIAltText]: A list of formatted HCI alt text data.
     """
-    s3_uploader = S3ImageUploader()
-    output: list[HCIAltText] = []
-    for item in tqdm(data):
-        image_url = s3_uploader.upload_image(
-            f"{image_base_url}/{item.local_uri[0]}",
-            sub_bucket="hci-alt-text-assets2022",
+    if max_workers < 1:
+        raise ValueError("max_workers must be at least 1")
+    if upload_batch_size < 1:
+        raise ValueError("upload_batch_size must be at least 1")
+
+    s3_uploader = s3_uploader or S3ImageUploader()
+    upload_results: list[ImageUploadResult | None] = [None] * len(data)
+    upload_tasks = [
+        (index, os.path.join(image_base_url, item.local_uri[0]))
+        for index, item in enumerate(data)
+    ]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with tqdm(total=len(upload_tasks), desc="Uploading images") as progress:
+            for batch in _batch_items(upload_tasks, upload_batch_size):
+                futures = {
+                    executor.submit(
+                        _upload_image,
+                        index,
+                        image_path,
+                        s3_uploader,
+                    ): (index, image_path)
+                    for index, image_path in batch
+                }
+                for future in as_completed(futures):
+                    index, image_path = futures[future]
+                    try:
+                        upload_results[index] = future.result()
+                    except Exception as exc:
+                        if not allow_partial_uploads:
+                            raise
+                        upload_results[index] = ImageUploadResult(
+                            index=index,
+                            image_url=None,
+                            error=f"{type(exc).__name__}: {exc} ({image_path})",
+                        )
+                    progress.update(1)
+
+    return [
+        _format_item(
+            item,
+            upload_results[index]
+            or ImageUploadResult(
+                index=index,
+                image_url=None,
+                error="Upload did not complete",
+            ),
         )
-        sentences_with_levels = [
-            (sentence, "; ".join([level.value for level in item.levels[i]]))
-            if item.levels
-            else (sentence, None)
-            for i, sentence in enumerate(item.sentences)
-        ]
-        output.append(
-            HCIAltText(
-                corpus_id=item.corpus_id,
-                title=item.title,
-                pdf_hash=item.pdf_hash,
-                image_url=image_url,
-                venue=item.venue,
-                year=item.year,
-                caption=item.caption,
-                alt_text=item.alt_text,
-                sentences=f"\n{'-' * 100}\n".join(
-                    f"(Levels {levels}): {sentence} "
-                    for sentence, levels in sentences_with_levels
-                ),
-                levels=[
-                    [level.value for level in sent_levels]
-                    for sent_levels in item.levels
-                ],
-                is_plot=item.is_plot,
-                annotated=item.annotated,
-                compound=item.compound,
-            )
-        )
-    return output
+        for index, item in enumerate(data)
+    ]
 
 
 def convert_to_spreadsheet_format(data: list[HCIAltText], output_file: str):
