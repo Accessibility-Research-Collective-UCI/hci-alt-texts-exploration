@@ -8,8 +8,9 @@ from enum import Enum
 
 import pandas as pd
 from pydantic import BaseModel
-from s3_image_uploader import S3ImageUploader
 from tqdm.auto import tqdm
+
+from .s3_image_uploader import S3ImageUploader
 
 
 class AltTextLevels(str, Enum):
