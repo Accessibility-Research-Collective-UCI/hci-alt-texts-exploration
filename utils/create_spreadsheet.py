@@ -102,7 +102,10 @@ def format_data(data: list[HCIAltTextRaw], image_base_url: str) -> list[HCIAltTe
     s3_uploader = S3ImageUploader()
     output: list[HCIAltText] = []
     for item in tqdm(data):
-        image_url = s3_uploader.upload_image(f"{image_base_url}/{item.local_uri[0]}")
+        image_url = s3_uploader.upload_image(
+            f"{image_base_url}/{item.local_uri[0]}",
+            sub_bucket="hci-alt-text-assets2022",
+        )
         sentences_with_levels = [
             (sentence, "; ".join([level.value for level in item.levels[i]]))
             if item.levels

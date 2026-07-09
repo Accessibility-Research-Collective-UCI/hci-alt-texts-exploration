@@ -11,12 +11,13 @@ class S3ImageUploader:
     """Utility class for uploading images to S3 after converting to PNG format."""
 
     @staticmethod
-    def upload_image(image_path: str) -> str:
+    def upload_image(image_path: str, sub_bucket: str = "") -> str:
         """
         Convert an image to PNG and upload it to S3.
 
         Args:
             image_path: Path to the input image file
+            sub_bucket: The sub-bucket within S3 to upload the image to
 
         Returns:
             The URL of the uploaded image in S3
@@ -51,7 +52,6 @@ class S3ImageUploader:
 
         # Generate S3 key from original filename
         original_name = Path(image_path).stem
-        sub_bucket = os.getenv("S3_SUB_BUCKET")
         s3_key = f"{sub_bucket}/{original_name}.png"
 
         # Upload to S3
