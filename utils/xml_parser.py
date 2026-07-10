@@ -2,18 +2,21 @@
 XML parser for extracting paper metadata and figure information.
 
 Usage:
-uv run utils/xml_parser.py --folder xml_papers/ --output-dir data/
+uv run utils/xml_parser.py --folder xml_papers/ --output-dir xml_papers/
 """
 
 import argparse
 import json
 import os
 import re
+import shutil
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from bs4 import BeautifulSoup
 from tqdm.auto import tqdm
+
+TERMINAL_COLUMNS, _ = shutil.get_terminal_size()
 
 VENUE_YEAR_DIR_PATTERN = re.compile(r"^[A-Za-z]+_\d{4}$")
 TITLE_DOI_FILENAME_PATTERN = re.compile(
@@ -36,10 +39,12 @@ RAW_FIGURE_ALT_PATTERN = re.compile(
     re.DOTALL | re.VERBOSE,
 )
 EXCLUDED_ALT_TEXTS = {
+    "cc logo",
     "cc-by logo",
     "cc-by-nc logo",
     "cc-by-nc-nd logo",
     "cc-by-nd logo",
+    "cc-by-nc-sa Logo",
 }
 
 
@@ -271,7 +276,7 @@ def process_venue_year_dir(venue: str, year: int, sub_dir: Path) -> list[dict]:
 
     print(
         f"Finished processing {venue} {year}. Extracted info for {len(curr_output)} papers.",
-        end="\n" + "-" * 100 + "\n",
+        end="\n" + "-" * TERMINAL_COLUMNS + "\n",
     )
     return curr_output
 
