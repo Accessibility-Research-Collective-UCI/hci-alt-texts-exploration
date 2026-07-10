@@ -11,7 +11,9 @@ dependencies = [
     "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
     "requests>=2.34.2",
+    "scikit-learn>=1.9.0",
     "tqdm>=4.68.3",
+    "url-normalize>=3.0.0",
 ]
 
 [dependency-groups]

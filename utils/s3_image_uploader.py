@@ -6,6 +6,9 @@ from pathlib import Path
 import boto3
 from dotenv import load_dotenv
 from PIL import Image
+from url_normalize import url_normalize
+
+Image.MAX_IMAGE_PIXELS = 933120000
 
 
 class S3ImageUploader:
@@ -73,9 +76,11 @@ class S3ImageUploader:
 
         # Return the S3 URL
         region = os.getenv("AWS_REGION") or "us-east-1"
-        s3_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{s3_key}"
+        s3_url = url_normalize(
+            f"https://{bucket_name}.s3.{region}.amazonaws.com/{s3_key}"
+        )
 
-        return s3_url
+        return s3_url if s3_url else ""
 
 
 if __name__ == "__main__":
