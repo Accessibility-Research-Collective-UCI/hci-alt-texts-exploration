@@ -11,6 +11,8 @@ The JSON structure is:
         "figures": [
             {
                 "figure_num": int | null,
+                "img_src": str,
+                "caption": str,
                 "alt_text": str,
                 "referring_text": [str]
             },
@@ -52,9 +54,9 @@ class InputXMLPaper:
 @dataclass
 class InputXMLFigure:
     figure_num: int | None
-    alt_text: str
     img_src: Path
     caption: str
+    alt_text: str
     referring_text: list[str]
 
 
@@ -119,8 +121,16 @@ def read_json_file(file_path: Path) -> list[InputXMLPaper]:
     return output
 
 
-def clean_text(text: str) -> str:
-    """Removes standard prefixes, punctuation, and converts text to lowercase."""
+def clean_text_for_similarity_comparison(text: str) -> str:
+    """
+    Removes standard prefixes, punctuation, and converts text to lowercase. This is done to make comparing similarity between figure captions and alt text is more reliable.
+
+    Args:
+        text (str): Input string to clean
+
+    Returns
+        (str): Cleaned string.
+    """
     text = text.lower()
 
     # Your updated pattern (added re.IGNORECASE to be safe with mixed casing)
@@ -132,7 +142,16 @@ def clean_text(text: str) -> str:
 
 
 def get_jaccard_similarity(text1: str, text2: str) -> float:
-    """Calculates unique word overlap percentage (0.0 to 1.0)."""
+    """
+    Calculates unique word overlap percentage (0.0 to 1.0).
+
+    Args:
+        text1 (str): First cleaned text string.
+        text2 (str): Second cleaned text string.
+
+    Returns:
+        (float): Jaccard similarity of the two strings, between 0.0 and 1.0.
+    """
     set1 = set(text1.split())
     set2 = set(text2.split())
     if not set1 and not set2:
@@ -141,7 +160,16 @@ def get_jaccard_similarity(text1: str, text2: str) -> float:
 
 
 def get_cosine_similarity(text1: str, text2: str) -> float:
-    """Calculates word frequency similarity (0.0 to 1.0)."""
+    """
+    Calculates word frequency similarity by creating a word count vector and computing the cosine similarity between them (0.0 to 1.0).
+
+    Args:
+        text1 (str): First cleaned text string.
+        text2 (str): Second cleaned text string.
+
+    Returns:
+        (float): Cosine similarity of the two strings, between 0.0 and 1.0.
+    """
     if not text1.strip() or not text2.strip():
         return 0.0
     vectorizer = CountVectorizer().fit_transform([text1, text2])
@@ -234,8 +262,8 @@ def format_data(
     for paper in data:
         for figure in paper.figures:
             # compute similarity between caption and alt text
-            caption_cleaned = clean_text(figure.caption)
-            alt_text_cleaned = clean_text(figure.alt_text)
+            caption_cleaned = clean_text_for_similarity_comparison(figure.caption)
+            alt_text_cleaned = clean_text_for_similarity_comparison(figure.alt_text)
 
             output_data.append(
                 OutputSpreadsheetRow(
