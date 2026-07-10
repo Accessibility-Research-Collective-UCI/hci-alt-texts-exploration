@@ -355,7 +355,7 @@ def upload_images(
                     for idx, image_path, venue, year in batch
                 }
                 for future in as_completed(futures):
-                    idx, image_path, venue, year = futures[future]
+                    idx, _, _, _ = futures[future]
                     try:
                         s3_url = future.result().image_url
                         upload_results[idx] = ImageUploadResult(
