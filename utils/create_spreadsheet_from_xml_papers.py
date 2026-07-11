@@ -406,6 +406,12 @@ def main() -> None:
         help="Prefix for the S3 bucket where images will be uploaded. Default is 'hci-alt-text'.",
     )
     parser.add_argument(
+        "--skip-upload",
+        action="store_true",
+        default=False,
+        help="Skip the uploading of images to S3. This will provide a blank URL instead/",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
@@ -455,6 +461,7 @@ def main() -> None:
         years = [year for year, _ in parsed_json_info[venue]]
         print(f"Processing {venue} {','.join(str(y) for y in years)}")
 
+        # TODO: add an option for if files should be combined. if not, save separately
         formatted_data_for_venue: list[OutputSpreadsheetRow] = []
         for year, json_file in parsed_json_info[venue]:
             data: list[InputXMLPaper] = read_json_file(json_file)
@@ -464,14 +471,18 @@ def main() -> None:
             )
             formatted_data_for_venue.extend(curr_formatted_data)
         print(f"Total number of figures for {venue}: {len(formatted_data_for_venue)}.")
-        output_data_for_venue = upload_images(
-            formatted_data_for_venue,
-            image_base_url=args.image_base_url,
-            s3_uploader=s3_uploader,
-            bucket_prefix=f"{args.bucket_prefix}",
-            upload_batch_size=args.upload_batch_size,
-            max_workers=args.concurrency,
-        )
+
+        if args.skip_upload:
+            output_data_for_venue = formatted_data_for_venue
+        else:
+            output_data_for_venue = upload_images(
+                formatted_data_for_venue,
+                image_base_url=args.image_base_url,
+                s3_uploader=s3_uploader,
+                bucket_prefix=f"{args.bucket_prefix}",
+                upload_batch_size=args.upload_batch_size,
+                max_workers=args.concurrency,
+            )
         convert_to_spreadsheet_format(
             output_data_for_venue,
             venue=venue,
