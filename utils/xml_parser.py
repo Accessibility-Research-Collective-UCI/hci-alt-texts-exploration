@@ -38,14 +38,42 @@ RAW_FIGURE_ALT_PATTERN = re.compile(
     """,
     re.DOTALL | re.VERBOSE,
 )
-EXCLUDED_ALT_TEXTS = {
-    "cc logo",
-    "cc-by logo",
-    "cc-by-nc logo",
-    "cc-by-nc-nd logo",
-    "cc-by-nd logo",
-    "cc-by-nc-sa Logo",
-}
+# EXCLUDED_ALT_TEXTS = {
+#     "cc logo",
+#     "cc by logo",
+#     "cc-bt-nc-sa logo",
+#     "cc-by logo",
+#     "cc-by-logo",
+#     "cc-by-nc logo",
+#     "cc-by-nc-nd logo",
+#     "cc-by-nd logo",
+#     "cc-by-sa logo",
+#     "cc by nc sa logo",
+#     "cc-by-nc-sa logo",
+#     "cc-by-nc-sa logo image",
+#     "cc-by logo image",
+#     "bb-by logo",
+# }
+EXCLUDE_CC_LICENSE_REGEX = re.compile(
+    r"""
+    ^
+    \s*
+    (?:cc|bb)
+    (?:
+        # License terms, optionally followed by "logo" and/or "image"
+        (?:[\s_-]+(?:by|bt|nc|nd|sa))+
+        (?:[\s_-]+logo)?
+        (?:[\s_-]+image)?
+        |
+        # Cases containing only "CC logo" or "CC logo image"
+        [\s_-]+logo
+        (?:[\s_-]+image)?
+    )
+    \s*
+    $
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 
 
 @dataclass
@@ -187,7 +215,8 @@ class PaperParser:
             else self.get_attr_or_empty(figure, "Alt")
         )
 
-        if alt_text.lower() in EXCLUDED_ALT_TEXTS:
+        # logos for Creative Common licenses are sometimes included as images; remove them
+        if EXCLUDE_CC_LICENSE_REGEX.fullmatch(alt_text):
             return None
 
         caption = self.get_text_or_empty(caption_tag)
