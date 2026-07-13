@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+from argparse import Namespace
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -22,7 +23,10 @@ VENUE_YEAR_DIR_PATTERN = re.compile(r"^[A-Za-z]+_\d{4}$")
 TITLE_DOI_FILENAME_PATTERN = re.compile(
     r"^(?P<title>.+?) \[(?P<doi_prefix>10\.\d{4,9})_(?P<doi_suffix>[-._;()/:A-Za-z0-9]+)\]\.xml$"
 )
-FIGURE_NUM_PATTERN = re.compile(r"\bFigure\s+(\d+)\s*:", re.IGNORECASE)
+FIGURE_NUM_PATTERN = re.compile(
+    r"\b(?:Fig(?:ure)?|Tab(?:le)?)\.?\s*(\d+)\s*:",
+    re.IGNORECASE,
+)
 FIGURE_REF_PATTERN_TEMPLATE = r"\b(?:fig(?:ure)?\.?)\s*{figure_num}\b"
 RAW_FIGURE_ALT_PATTERN = re.compile(
     r"""
@@ -38,23 +42,7 @@ RAW_FIGURE_ALT_PATTERN = re.compile(
     """,
     re.DOTALL | re.VERBOSE,
 )
-# EXCLUDED_ALT_TEXTS = {
-#     "cc logo",
-#     "cc by logo",
-#     "cc-bt-nc-sa logo",
-#     "cc-by logo",
-#     "cc-by-logo",
-#     "cc-by-nc logo",
-#     "cc-by-nc-nd logo",
-#     "cc-by-nd logo",
-#     "cc-by-sa logo",
-#     "cc by nc sa logo",
-#     "cc-by-nc-sa logo",
-#     "cc-by-nc-sa logo image",
-#     "cc-by logo image",
-#     "bb-by logo",
-# }
-EXCLUDE_CC_LICENSE_REGEX = re.compile(
+EXCLUDE_CC_LICENSE_ALT_TEXT_REGEX = re.compile(
     r"""
     ^
     \s*
@@ -73,6 +61,10 @@ EXCLUDE_CC_LICENSE_REGEX = re.compile(
     $
     """,
     re.IGNORECASE | re.VERBOSE,
+)
+EXCLUDE_CC_LICENSE_CAPTION_REGEX = re.compile(
+    r"\bCreative\s*Commons\s*Attribution",
+    re.IGNORECASE,
 )
 
 
@@ -209,6 +201,7 @@ class PaperParser:
         image_data = figure.find_next("ImageData")
         caption_tag = figure.find_next("P")
 
+        caption = self.get_text_or_empty(caption_tag)
         alt_text = (
             raw_figure_alts[idx]
             if idx < len(raw_figure_alts)
@@ -216,10 +209,11 @@ class PaperParser:
         )
 
         # logos for Creative Common licenses are sometimes included as images; remove them
-        if EXCLUDE_CC_LICENSE_REGEX.fullmatch(alt_text):
+        if EXCLUDE_CC_LICENSE_ALT_TEXT_REGEX.fullmatch(alt_text):
+            return None
+        if EXCLUDE_CC_LICENSE_CAPTION_REGEX.search(caption):
             return None
 
-        caption = self.get_text_or_empty(caption_tag)
         figure_num = self.extract_figure_num(caption)
 
         img_path = self.get_attr_or_empty(image_data, "src")
@@ -318,7 +312,7 @@ def write_extracted_info(
         json.dump(extracted_info, f, indent=4, ensure_ascii=False)
 
 
-def main() -> None:
+def parse_args() -> Namespace:
     parser = argparse.ArgumentParser(
         description="Parse directory for XML file for paper info."
     )
@@ -335,7 +329,11 @@ def main() -> None:
         default=None,
         help="Optional path to output JSON file. If not provided, will save in the same folder.",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
 
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
