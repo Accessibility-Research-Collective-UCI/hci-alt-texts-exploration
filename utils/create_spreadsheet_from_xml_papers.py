@@ -21,7 +21,14 @@ The JSON structure is:
 ]
 
 Usage:
-uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --include-venues assets --output-dir xml_papers/spreadsheets --upload-batch-size 256 --concurrency 16
+# with uploading images
+uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/spreadsheets --upload-batch-size 256 --concurrency 16
+
+# specify venue to include
+uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --include-venues assets --output-dir processed_papers/spreadsheets --upload-batch-size 256 --concurrency 16
+
+# run without uploading images
+uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/spreadsheets --skip-upload
 """
 
 import argparse
@@ -29,6 +36,7 @@ import json
 import os
 import re
 import shutil
+from argparse import Namespace
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -71,6 +79,7 @@ class ImageUploadResult:
 class OutputSpreadsheetRow:
     title: str
     doi: str
+    paper_link: str
     venue: str
     year: int
     img_url: str | None
@@ -198,6 +207,7 @@ def convert_to_spreadsheet_format(
         "id",
         "title",
         "doi",
+        "paper_link",
         "venue",
         "year",
         "img_url",
@@ -264,24 +274,31 @@ def format_data(
             # compute similarity between caption and alt text
             caption_cleaned = clean_text_for_similarity_comparison(figure.caption)
             alt_text_cleaned = clean_text_for_similarity_comparison(figure.alt_text)
+            jaccard_similarity = get_jaccard_similarity(
+                caption_cleaned, alt_text_cleaned
+            )
+            cosine_similarity = get_cosine_similarity(caption_cleaned, alt_text_cleaned)
+
+            dl_acm_paper_link = (
+                f"https://dl.acm.org/doi/{paper.doi}" if paper.doi != "" else ""
+            )
+            image_url = str(figure.img_src) if figure.img_src else None
+            referring_text = f"\n{'-' * 50}\n".join(figure.referring_text)
 
             output_data.append(
                 OutputSpreadsheetRow(
                     title=paper.title,
                     doi=paper.doi,
+                    paper_link=dl_acm_paper_link,
                     venue=paper.venue,
                     year=paper.year,
-                    img_url=str(figure.img_src) if figure.img_src else None,
+                    img_url=image_url,
                     figure_num=figure.figure_num,
                     caption=figure.caption,
                     alt_text=figure.alt_text,
-                    jaccard_similarity=get_jaccard_similarity(
-                        caption_cleaned, alt_text_cleaned
-                    ),
-                    cosine_similarity=get_cosine_similarity(
-                        caption_cleaned, alt_text_cleaned
-                    ),
-                    referring_text=f"\n{'-' * 50}\n".join(figure.referring_text),
+                    jaccard_similarity=jaccard_similarity,
+                    cosine_similarity=cosine_similarity,
+                    referring_text=referring_text,
                 )
             )
     return output_data
@@ -377,7 +394,7 @@ def upload_images(
     return data
 
 
-def main() -> None:
+def parse_args() -> Namespace:
     parser = argparse.ArgumentParser(
         description="Convert JSON files from scraped XML papers into a CSV format."
     )
@@ -430,7 +447,11 @@ def main() -> None:
         help="Maximum number of worker threads for uploading images. Default is 16.",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
     folder_path = args.input_dir
@@ -483,6 +504,9 @@ def main() -> None:
                 upload_batch_size=args.upload_batch_size,
                 max_workers=args.concurrency,
             )
+
+        # TODO: allow for saving as JSON
+        # save output
         convert_to_spreadsheet_format(
             output_data_for_venue,
             venue=venue,
