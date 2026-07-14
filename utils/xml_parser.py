@@ -19,6 +19,9 @@ from tqdm.auto import tqdm
 
 TERMINAL_COLUMNS, _ = shutil.get_terminal_size()
 
+BARE_AMPERSAND_PATTERN = re.compile(
+    r"&(?!(?:amp|lt|gt|quot|apos);|#\d+;|#x[0-9A-Fa-f]+;)"
+)
 VENUE_YEAR_DIR_PATTERN = re.compile(r"^[A-Za-z]+_\d{4}$")
 TITLE_DOI_FILENAME_PATTERN = re.compile(
     r"^(?P<title>.+?) \[(?P<doi_prefix>10\.\d{4,9})_(?P<doi_suffix>[-._;()/:A-Za-z0-9]+)\]\.xml$"
@@ -88,8 +91,20 @@ class PaperParser:
         venue: str = "",
         year: int = 0,
     ):
-        self.contents = xml_path.read_text(encoding="utf-8", errors="replace")
-        self.soup: BeautifulSoup = BeautifulSoup(self.contents, "xml")
+        self.contents = xml_path.read_text(
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        parseable_contents = BARE_AMPERSAND_PATTERN.sub(
+            "&amp;",
+            self.contents,
+        )
+
+        self.soup: BeautifulSoup = BeautifulSoup(
+            parseable_contents,
+            "xml",
+        )
 
         if title == "" and doi == "":
             self.title, self.doi = self.extract_title_and_doi_from_filename(
