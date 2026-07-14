@@ -96,6 +96,17 @@ class OutputSpreadsheetRow:
     example_qualty: str = ""
 
 
+def _normalize_local_img_path(image_path: str | Path | None) -> str | None:
+    if image_path is None:
+        return None
+
+    normalized_path = str(image_path).strip()
+    if normalized_path in {"", os.curdir}:
+        return None
+
+    return normalized_path
+
+
 def read_json_file(file_path: Path) -> list[InputXMLPaper]:
     """
     Reads a JSON file and returns a list of InputXMLPaper objects.
@@ -316,7 +327,8 @@ def format_data(
             dl_acm_paper_link = (
                 f"https://dl.acm.org/doi/{paper.doi}" if paper.doi != "" else ""
             )
-            image_url = str(figure.img_src) if figure.img_src else None
+
+            image_url = _normalize_local_img_path(figure.img_src)
             referring_text = f"\n{'-' * 50}\n".join(figure.referring_text)
 
             output_data.append(
@@ -387,11 +399,22 @@ def upload_images(
         raise ValueError("upload_batch_size must be at least 1")
 
     upload_results: list[ImageUploadResult | None] = [None] * len(data)
-    upload_tasks: list[tuple[int, str, str, int]] = [
-        (idx, os.path.join(image_base_url, row.local_img_path), row.venue, row.year)
-        for idx, row in enumerate(data)
-        if row.local_img_path
-    ]
+    upload_tasks: list[tuple[int, str, str, int]] = []
+    for idx, row in enumerate(data):
+        local_img_path = _normalize_local_img_path(row.local_img_path)
+        row.local_img_path = local_img_path
+        if local_img_path is None:
+            continue
+
+        upload_tasks.append(
+            (
+                idx,
+                os.path.join(image_base_url, local_img_path),
+                row.venue,
+                row.year,
+            )
+        )
+    print(f"Total non-empty figures to upload: {len(upload_tasks)}")
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         with tqdm(total=len(upload_tasks), desc="Uploading images to S3") as progress:
