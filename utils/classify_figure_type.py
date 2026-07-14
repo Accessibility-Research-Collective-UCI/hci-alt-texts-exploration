@@ -7,13 +7,14 @@ CSV or JSON file. Images that cannot be loaded are retained in the
 output with label_1 set to "Error".
 
 Usage:
-uv run utils/classify_figure_type.py --input-file processed_papers/json/ASSETS_2021-2022-2023-2024-2025_papers.json --image-field local_img_path --weights model_checkpoints/acl-fig_plot-image-table-other/model.safetensors --batch-size 64 --num-workers 16
+uv run utils/classify_figure_type.py --input-file processed_papers/spreadsheets/ASSETS_2021-2022-2023-2024-2025_papers.csv --image-field img_url --weights model_checkpoints/acl-fig_plot-image-table-other/model.safetensors --batch-size 128 --num-workers 12
 """
 
 import argparse
 import math
 import shutil
 import sys
+from collections import Counter
 from contextlib import nullcontext
 from io import BytesIO
 from pathlib import Path
@@ -612,6 +613,20 @@ def default_output_path(input_file: str | Path) -> Path:
     return input_path.with_name(f"{input_path.stem}_with-preds{input_path.suffix}")
 
 
+def print_prediction_summary(predictions: list[PredictionRow]) -> None:
+    labels = [result.get("label_1", "Error") for result in predictions]
+    total = len(labels)
+    count = Counter(labels)
+
+    print("-" * TERMINAL_COLUMNS)
+    print(f"Summary of predictions (Total = {total} figures)")
+
+    for label in NEW_LABELS:
+        value = count[label] if label in count else 0
+        print(f"{label}: {value} ({100 * value / total:.2f}%)")
+    print("-" * TERMINAL_COLUMNS)
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -716,6 +731,7 @@ def main() -> None:
         num_workers=args.num_workers,
         top_k=top_k,
     )
+    print_prediction_summary(results)
 
     output_path = (
         Path(args.output) if args.output else default_output_path(args.input_file)
@@ -735,6 +751,7 @@ def main() -> None:
     print(f"Processed rows: {len(results)}")
     print(f"Image-loading errors: {error_count}")
     print(f"Predictions saved to: {output_path}")
+    print("-" * TERMINAL_COLUMNS)
 
 
 if __name__ == "__main__":
