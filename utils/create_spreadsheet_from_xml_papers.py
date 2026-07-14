@@ -22,13 +22,13 @@ The JSON structure is:
 
 Usage:
 # with uploading images
-uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/spreadsheets --upload-batch-size 256 --concurrency 16
+uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/ --upload-batch-size 256 --concurrency 16 --save-json
 
 # specify venue to include
-uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --include-venues assets --output-dir processed_papers/spreadsheets --upload-batch-size 256 --concurrency 16
+uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --include-venues assets --output-dir processed_papers/ --upload-batch-size 256 --concurrency 16 --save-json
 
 # run without uploading images
-uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/spreadsheets --skip-upload
+uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/ --skip-upload --save-json
 """
 
 import argparse
@@ -82,6 +82,7 @@ class OutputSpreadsheetRow:
     paper_link: str
     venue: str
     year: int
+    local_img_path: str | None
     img_url: str | None
     figure_num: int | None
     caption: str
@@ -90,7 +91,8 @@ class OutputSpreadsheetRow:
     cosine_similarity: float
     referring_text: str
     figure_preview: str = ""
-    figure_type: str = ""
+    inferred_type: str = ""
+    inferred_type_full: str = ""
     example_qualty: str = ""
 
 
@@ -186,11 +188,11 @@ def get_cosine_similarity(text1: str, text2: str) -> float:
     return cosine_similarity(vectors[0:1], vectors[1:2])[0][0]
 
 
-def convert_to_spreadsheet_format(
+def save_as_spreadsheet(
     data: list[OutputSpreadsheetRow], venue: str, years: list[int], output_dir: str
 ) -> None:
     """
-    Converts a list of OutputSpreadsheetRow objects into a list of dictionaries suitable for CSV output.
+    Saves a list of OutputSpreadsheetRow objects as a CSV.
 
     Args:
         data (list[OutputSpreadsheetRow]): The input data to convert.
@@ -198,9 +200,13 @@ def convert_to_spreadsheet_format(
         years (list[int]): The years of the papers.
         output_dir (str): The directory where the CSV file will be saved.
     """
+    output_folder = os.path.join(output_dir, "spreadsheets")
+    os.makedirs(output_folder, exist_ok=True)
     output_path = os.path.join(
-        output_dir, f"{venue}_{'-'.join(str(year) for year in years)}_papers.csv"
+        output_folder,
+        f"{venue}_{'-'.join(str(year) for year in years)}_papers.csv",
     )
+
     df = pd.DataFrame([row.__dict__ for row in data])
     df.insert(0, "id", range(1, len(df) + 1))
     column_order = [
@@ -210,15 +216,17 @@ def convert_to_spreadsheet_format(
         "paper_link",
         "venue",
         "year",
+        "local_img_path",
         "img_url",
         "figure_preview",
+        "inferred_type",
+        "inferred_type_full",
         "figure_num",
         "caption",
         "alt_text",
         "jaccard_similarity",
         "cosine_similarity",
         "referring_text",
-        "figure_type",
         "example_qualty",
     ]
     df = df[column_order]
@@ -226,6 +234,32 @@ def convert_to_spreadsheet_format(
     df.to_csv(output_path, index=False)
     print(
         f"Papers for {venue} {', '.join(str(year) for year in years)}: CSV file saved to {output_path}"
+    )
+
+
+def save_as_json(
+    data: list[OutputSpreadsheetRow], venue: str, years: list[int], output_dir: str
+) -> None:
+    """
+    Saves a list of OutputSpreadsheetRow objects as a JSON.
+
+    Args:
+        data (list[OutputSpreadsheetRow]): The input data to convert.
+        venue (str): The venue of the papers.
+        years (list[int]): The years of the papers.
+        output_dir (str): The directory where the JSON file will be saved.
+    """
+    output_folder = os.path.join(output_dir, "json")
+    os.makedirs(output_folder, exist_ok=True)
+    output_path = os.path.join(
+        output_folder,
+        f"{venue}_{'-'.join(str(year) for year in years)}_papers.json",
+    )
+
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump([row.__dict__ for row in data], file, indent=4)
+    print(
+        f"Papers for {venue} {', '.join(str(year) for year in years)}: JSON file saved to {output_path}"
     )
 
 
@@ -292,7 +326,8 @@ def format_data(
                     paper_link=dl_acm_paper_link,
                     venue=paper.venue,
                     year=paper.year,
-                    img_url=image_url,
+                    local_img_path=image_url,
+                    img_url=None,
                     figure_num=figure.figure_num,
                     caption=figure.caption,
                     alt_text=figure.alt_text,
@@ -353,9 +388,9 @@ def upload_images(
 
     upload_results: list[ImageUploadResult | None] = [None] * len(data)
     upload_tasks: list[tuple[int, str, str, int]] = [
-        (idx, os.path.join(image_base_url, row.img_url), row.venue, row.year)
+        (idx, os.path.join(image_base_url, row.local_img_path), row.venue, row.year)
         for idx, row in enumerate(data)
-        if row.img_url
+        if row.local_img_path
     ]
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -426,13 +461,19 @@ def parse_args() -> Namespace:
         "--skip-upload",
         action="store_true",
         default=False,
-        help="Skip the uploading of images to S3. This will provide a blank URL instead/",
+        help="Skip the uploading of images to S3. This will provide a blank URL instead.",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=None,
         help="Directory where the CSV files will be saved. If none is provided, the script will save in the same directory as the input files.",
+    )
+    parser.add_argument(
+        "--save-json",
+        action="store_true",
+        default=False,
+        help="Outputs a JSON file, in addition to the CSV.",
     )
     parser.add_argument(
         "--upload-batch-size",
@@ -505,14 +546,22 @@ def main() -> None:
                 max_workers=args.concurrency,
             )
 
-        # TODO: allow for saving as JSON
         # save output
-        convert_to_spreadsheet_format(
+        save_as_spreadsheet(
             output_data_for_venue,
             venue=venue,
             years=years,
             output_dir=args.output_dir or folder_path,
         )
+
+        if args.save_json:
+            save_as_json(
+                output_data_for_venue,
+                venue=venue,
+                years=years,
+                output_dir=args.output_dir or folder_path,
+            )
+
         print(
             f"Finished processing {venue} {', '.join(str(y) for y in years)}.",
             end="\n" + "-" * TERMINAL_COLUMNS + "\n",
