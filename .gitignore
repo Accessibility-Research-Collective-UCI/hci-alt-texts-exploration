@@ -250,8 +250,11 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/macos,windows,linux,python
 
 # User added
+*.csv
 !data/hci-alt-text-dataset-20220915.jsonl
 !data/pdf_alttext_success.csv
 data/images
 data/formatted
 xml_papers/
+model_checkpoints/
+processed_papers/
