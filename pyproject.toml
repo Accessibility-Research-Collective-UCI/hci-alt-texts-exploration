@@ -19,6 +19,8 @@ dependencies = [
     "torchvision",
     "accelerate>=1.11.0",
     "url-normalize>=3.0.0",
+    "ftfy>=6.3.1",
+    "wordninja>=2.0.0",
 ]
 
 [tool.uv]

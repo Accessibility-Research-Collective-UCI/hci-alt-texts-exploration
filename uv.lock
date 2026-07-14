@@ -484,6 +484,18 @@ wheels = [
 ]
 
 [[package]]
+name = "ftfy"
+version = "6.3.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wcwidth" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a5/d3/8650919bc3c7c6e90ee3fa7fd618bf373cbbe55dff043bd67353dbb20cd8/ftfy-6.3.1.tar.gz", hash = "sha256:9b3c3d90f84fb267fe64d375a07b7f8912d817cf86009ae134aa03e1819506ec", size = 308927, upload-time = "2024-10-26T00:50:35.149Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ab/6e/81d47999aebc1b155f81eca4477a616a70f238a2549848c38983f3c22a82/ftfy-6.3.1-py3-none-any.whl", hash = "sha256:7c70eb532015cd2f9adb53f101fb6c7945988d023a085d127d1573dc49dd0083", size = 44821, upload-time = "2024-10-26T00:50:33.425Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -500,6 +512,7 @@ dependencies = [
     { name = "accelerate" },
     { name = "boto3" },
     { name = "bs4" },
+    { name = "ftfy" },
     { name = "lxml" },
     { name = "pandas" },
     { name = "pillow" },
@@ -517,6 +530,7 @@ dependencies = [
     { name = "tqdm" },
     { name = "transformers" },
     { name = "url-normalize" },
+    { name = "wordninja" },
 ]
 
 [package.dev-dependencies]
@@ -533,6 +547,7 @@ requires-dist = [
     { name = "accelerate", specifier = ">=1.11.0" },
     { name = "boto3", specifier = ">=1.43.34" },
     { name = "bs4", specifier = ">=0.0.2" },
+    { name = "ftfy", specifier = ">=6.3.1" },
     { name = "lxml", specifier = ">=6.1.1" },
     { name = "pandas", specifier = ">=3.0.3" },
     { name = "pillow", specifier = ">=12.2.0" },
@@ -548,6 +563,7 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.68.3" },
     { name = "transformers", specifier = "==4.57.1" },
     { name = "url-normalize", specifier = ">=3.0.0" },
+    { name = "wordninja", specifier = ">=2.0.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -2507,3 +2523,9 @@ sdist = { url = "https://files.pythonhosted.org/packages/bd/f4/c67440c7fb409a71b
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3f/0e/fa3b193432cfc60c93b42f3be03365f5f909d2b3ea410295cf36df739e31/widgetsnbextension-4.0.15-py3-none-any.whl", hash = "sha256:8156704e4346a571d9ce73b84bee86a29906c9abfd7223b7228a28899ccf3366", size = 2196503, upload-time = "2025-11-01T21:15:53.565Z" },
 ]
+
+[[package]]
+name = "wordninja"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/30/15/abe4af50f4be92b60c25e43c1c64d08453b51e46c32981d80b3aebec0260/wordninja-2.0.0.tar.gz", hash = "sha256:1a1cc7ec146ad19d6f71941ee82aef3d31221700f0d8bf844136cf8df79d281a", size = 541572, upload-time = "2019-08-10T02:16:54.944Z" }

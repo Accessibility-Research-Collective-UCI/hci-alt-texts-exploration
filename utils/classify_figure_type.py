@@ -7,7 +7,7 @@ CSV or JSON file. Images that cannot be loaded are retained in the
 output with label_1 set to "Error".
 
 Usage:
-uv run utils/classify_figure_type.py --input-file processed_papers/spreadsheets/ASSETS_2021-2022-2023-2024-2025_papers.csv --image-field img_url --weights model_checkpoints/acl-fig_plot-image-table-other/model.safetensors --batch-size 128 --num-workers 12
+uv run utils/classify_figure_type.py --input-file processed_papers/spreadsheets/ASSETS_2021-2022-2023-2024-2025_papers.csv --image-field local_img_path --weights model_checkpoints/acl-fig_plot-image-table-other/model.safetensors --batch-size 128 --num-workers 12
 """
 
 import argparse

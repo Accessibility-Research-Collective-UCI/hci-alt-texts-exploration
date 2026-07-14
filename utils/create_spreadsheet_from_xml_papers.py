@@ -21,14 +21,14 @@ The JSON structure is:
 ]
 
 Usage:
-# with uploading images
-uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/ --upload-batch-size 256 --concurrency 16 --save-json
+    # with uploading images
+    uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/ --upload-batch-size 256 --concurrency 16 --save-json
 
-# specify venue to include
-uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --include-venues assets --output-dir processed_papers/ --upload-batch-size 256 --concurrency 16 --save-json
+    # specify venue to include
+    uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --include-venues assets --output-dir processed_papers/ --upload-batch-size 256 --concurrency 16 --save-json
 
-# run without uploading images
-uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/ --skip-upload --save-json
+    # run without uploading images
+    uv run utils/create_spreadsheet_from_xml_papers.py --input-dir xml_papers/ --image-base-url . --output-dir processed_papers/ --skip-upload --save-json
 """
 
 import argparse
@@ -62,8 +62,10 @@ class InputXMLPaper:
 @dataclass
 class InputXMLFigure:
     figure_num: int | None
+    subfigure_label: str | None
     img_src: Path
     caption: str
+    subcaption: str
     alt_text: str
     referring_text: list[str]
 
@@ -85,7 +87,9 @@ class OutputSpreadsheetRow:
     local_img_path: str | None
     img_url: str | None
     figure_num: int | None
+    subfigure_label: str | None
     caption: str
+    subcaption: str
     alt_text: str
     jaccard_similarity: float
     cosine_similarity: float
@@ -124,9 +128,11 @@ def read_json_file(file_path: Path) -> list[InputXMLPaper]:
             figures = [
                 InputXMLFigure(
                     figure_num=figure.get("figure_num", None),
+                    subfigure_label=figure.get("subfigure_label", None),
                     alt_text=figure.get("alt_text", ""),
-                    img_src=Path(figure.get("img_src", "")),
+                    img_src=Path(figure.get("img_src") or ""),
                     caption=figure.get("caption", ""),
+                    subcaption=figure.get("subcaption", ""),
                     referring_text=figure.get("referring_text", []),
                 )
                 for figure in paper.get("figures", [])
@@ -233,7 +239,9 @@ def save_as_spreadsheet(
         "inferred_type",
         "inferred_type_full",
         "figure_num",
+        "subfigure_label",
         "caption",
+        "subcaption",
         "alt_text",
         "jaccard_similarity",
         "cosine_similarity",
@@ -341,7 +349,9 @@ def format_data(
                     local_img_path=image_url,
                     img_url=None,
                     figure_num=figure.figure_num,
+                    subfigure_label=figure.subfigure_label,
                     caption=figure.caption,
+                    subcaption=figure.subcaption,
                     alt_text=figure.alt_text,
                     jaccard_similarity=jaccard_similarity,
                     cosine_similarity=cosine_similarity,
